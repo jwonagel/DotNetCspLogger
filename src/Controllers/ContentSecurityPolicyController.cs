@@ -17,7 +17,7 @@ namespace csplogger.Controllers
         [HttpPost]
         public IActionResult Post([FromBody] CspData content)
         {
-            _logger.LogWarning("CSP-Report: {@content}", content);
+            _logger.LogInformation("CSP-Report: {@content}", content);
             return NoContent();
         }
         

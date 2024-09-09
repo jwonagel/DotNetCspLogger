@@ -3,30 +3,28 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Serilog.Settings.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var conf = new ConfigurationBuilder()
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddEnvironmentVariables()
-    .Build();
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration, new ConfigurationReaderOptions
+    {
+        SectionName = "Serilog"
+    })
+    .CreateLogger();
 
-var path = conf.GetValue<string>("LogPath");
+builder.Logging.ClearProviders();
+builder.Logging.AddSerilog(Log.Logger);
+builder.Host.UseSerilog();
 
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .WriteTo.Console()
-    .WriteTo.File(path,
-        rollingInterval: RollingInterval.Day,
-        rollOnFileSizeLimit: true));
-
-builder.Services.AddControllers(conf =>
+builder.Services.AddControllers(opt =>
 {
-    conf.InputFormatters.OfType<SystemTextJsonInputFormatter>().First().SupportedMediaTypes.Add(
+    opt.InputFormatters.OfType<SystemTextJsonInputFormatter>().First().SupportedMediaTypes.Add(
         MediaTypeHeaderValue.Parse("application/csp-report")
     );
 });
@@ -40,7 +38,7 @@ var app = builder.Build();
 
 app.UseDeveloperExceptionPage();
 app.UseSwagger();
-var virtualPath = conf.GetValue<string>("VirtualPath") ?? string.Empty;
+var virtualPath = builder.Configuration.GetValue<string>("VirtualPath") ?? string.Empty;
 virtualPath = EnsureTrailingSlash(virtualPath);
 
 app.UseSwaggerUI(c => c.SwaggerEndpoint($"{virtualPath}swagger/v1/swagger.json", "csplogger v1"));
@@ -51,11 +49,7 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllers();
-});
-
+app.MapControllers();
 
 app.Run();
 
